@@ -2,9 +2,29 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
 import numpy as np
+from google import genai
+from pydantic import BaseModel
+from typing import List, Union
 
 app = FastAPI()
+class PropertyLocation(BaseModel):
+    governorate: str
+    city: str
+    Locality: str
+    Street: str
 
+class PropertyFeature(BaseModel):
+    name: str
+    value: Union[str, int, bool]
+
+class PropertyDetails(BaseModel):
+    title: str
+    description: str
+    propertyType: str
+    price: int
+    surface: int
+    propertyLocation: PropertyLocation
+    propertyFeatures: List[PropertyFeature]
 # Define the input data model
 class PredictionInput(BaseModel):
     offer_demand: str  # Example: 'Rental'
@@ -37,3 +57,26 @@ async def predict_price(data: PredictionInput):
     prediction = model.predict(input_data)
 
     return {"predicted_price": prediction[0]}
+
+
+@app.post("/detect")
+async def detect_spam(details: PropertyDetails):
+    try:
+        client = genai.Client(api_key="AIzaSyCTmf2trLBuQqqLwMacvI3hJ0AHUj6zkdc")
+        print(details.model_dump_json())
+        prompt = f"""
+        Given the following property details, determine if this is likely a legitimate real estate listing or spam. 
+        Pay attention to the title and description it may be tricky, but don't overthink the realtion or missmatch between the title and description , just please see if the title and decription phrases contextes are only related to real estate. don't take into consediration the relation between the title and description, just see if they are related to real estate or not.
+        just return true or false.
+        Object:
+        {details.model_dump_json()}
+        """
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        return {"is_legit": response.text.strip().lower() == "true"}
+    except Exception as e:
+        return {"error": str(e)}
+        
